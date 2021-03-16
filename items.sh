@@ -23,10 +23,10 @@ tileIcons() {
         -2)
             case $2 in
                 0)
-                    tileIcon="▚▚"
+                    tileIcon="▀▄" # "▚▚"
                     ;;
                 1)
-                    tileIcon="▞▞"
+                    tileIcon="▄▀" # "▞▞"
                     ;;
             esac
             ;;

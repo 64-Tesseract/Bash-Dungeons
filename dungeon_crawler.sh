@@ -8,7 +8,7 @@ source help.sh
 debug=0
 #       PlayerX/Y  RoomX/Y
 player=(      1 1      0 0)
-lives=1
+lives=3
 shields=0
 stepCounter=0
 stepped=0
@@ -106,7 +106,7 @@ printInventory() {  # Prints items in inventory
         if [ $((inventory[invIndex])) -eq 0 ] && [ $invMode -eq 1 ]; then continue; fi
         itemNames $((inventory[invIndex]))
         spaceCount=$((12 - ${#itemName}))
-        echo -en "│$((invIndex + 1)):\e[1m"
+        echo -en "│$((invIndex + 1)): \e[1m"
         [ $discardMode -eq 1 ] && echo -en "\e[9m" 
         echo -en $itemName
         for (( space=0; space <= $spaceCount; space++ )); do echo -n " "; done
@@ -188,25 +188,33 @@ doActions() {  # Read actions & perform them
             ;;
         [1-9])  # Discard or Use Item, or Pick up
             itemID=$((inventory[action - 1]))
-            if [ $itemID -ne 0 ]; then
-                itemFunctions $itemID
-            else
-                gridIndex=$((player[0] + player[1] * 8))
-                itemID=$((objectGrid[gridIndex]))
+            if [ $discardMode -eq 0 ]; then
                 if [ $itemID -ne 0 ]; then
-                    itemNames $itemID
-                    inventory[$((action - 1))]=$itemID
-                    objectGrid[$gridIndex]=0
-                    setMessage "You picked up $itemName"
-                    stepped=1
+                    itemFunctions $itemID
+                else
+                    gridIndex=$((player[0] + player[1] * 8))
+                    itemID=$((objectGrid[gridIndex]))
+                    if [ $itemID -ne 0 ]; then
+                        itemNames $itemID
+                        inventory[$((action - 1))]=$itemID
+                        objectGrid[$gridIndex]=0
+                        setMessage "You picked up $itemName"
+                        stepped=1
+                    fi
                 fi
+            else
+                itemNames $itemID
+                setMessage "You discard the $itemName"
+                messageLast=0
+                inventory[$((action - 1))]=0
+                [ $equipped -eq $((action - 1)) ] && equipped=-1
             fi
             ;;
         "i")  # Change Inventory View
             invMode=$((($invMode + 1) % 3))
             ;;
         "o")  # Change Help View
-            helpMode=$((($helpMode + 1) % 3))
+            helpMode=$((($helpMode + 1) % 4))
             ;;
         "h")  # Debug Heal
             [ $debug -eq 1 ] && heal 1
