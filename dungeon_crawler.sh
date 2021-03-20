@@ -4,48 +4,43 @@ IFS="%"
 cd "${0%/*}"
 source items.sh
 source help.sh
+source rooms.sh
+
+read -sn 1 -t 5
 
 debug=0
-#       PlayerX/Y  RoomX/Y
-player=(      1 1      0 0)
-lives=3
-shields=0
-stepCounter=0
-stepped=0
-action=-1
-equipped=-1
-healOverTime=0
-weaponPoison=0
-invMode=1
-discardMode=0
-helpMode=1
+playerPos=(1 1  0 0)    # Position & room ID
+health=3                # Starting life
+shields=0               # Starting armour
+stepCounter=0           # Number of moves made
+stepped=0               # Whether to advence the step count
+action=""               # Last action performed
+healOverTime=0          # Potion/Poison effect, HP over time
+weaponPoison=0          # Poison applied to monsters attacked
+invMode=1               # Inventory view mode
+helpMode=1              # Help view mode
+discardMode=0           # Whether to discard a inventory items when selected
 inventory=(0 0 0 0 0 0 0 0 0)
 message="You awaken in a room..."
 messageLast=0
-objectGrid=(0  0  0  0  0 -2 -3 -3
-            0  0  0  0  0 -2 -3 -3
-            0  0  0  0  0  0 -2 -2
-            0  0  0 -1 -1  0  0  0
-            0  0  0 -1 -1  0  0  0
-            1  2  3  4  5  6  7  8
-            1  2  3  4  5  6  7  8
-            0  0  0  0  0  0  0  0)
+declare -A rooms        # roomX, roomY, gridX, gridY: item
+declare -A enemies      # posX, posY, var: type, health, shields, poison, stun
+genRoom
 
 
 printChar() {  # Draws grid element
     oddCell=$((($1 + $2) % 2))
-    oddRoom=$(($((player[2] + player[3])) % 2))
+    oddRoom=$(($((playerPos[2] + playerPos[3])) % 2))
     [ $oddRoom -lt 0 ] && oddRoom=$((oddRoom + 2))
     if [ $oddCell -eq $oddRoom ]; then echo -ne "\e[47;30m"; fi
     
-    objectIndex=$(($1 + $2 * 8))
-    objectID=$((objectGrid[objectIndex]))
+    objectIndex="R$((playerPos[2])),$((playerPos[3])),$1,$2"
+    getObject $objectIndex
     
     if [ $objectID -ge 0 ]; then
-        itemIcons $objectID
-        echo -n $itemIcon
+        echo -n ${itemIcons[$objectID]}
         
-        if [ $((player[0])) -eq $1 ] && [ $((player[1])) -eq $2 ]; then
+        if [ $((playerPos[0])) -eq $1 ] && [ $((playerPos[1])) -eq $2 ]; then
             echo -n "◉"
         else
             echo -n " "
@@ -93,10 +88,10 @@ printLifeBar() {  # Prints armour, steps, & hearts
     echo -n $stepCounter
     for (( space=0; space <= $(((spaceCount + 1) / 2)); space++ )); do echo -n " "; done
     
-    printHeart $((lives - 12))
-    printHeart $((lives - 8))
-    printHeart $((lives - 4))
-    printHeart $lives
+    printHeart $((health - 12))
+    printHeart $((health - 8))
+    printHeart $((health - 4))
+    printHeart $health
     echo "│"
 }
 
@@ -104,10 +99,11 @@ printInventory() {  # Prints items in inventory
     [ $invMode -eq 0 ] && return
     for invIndex in {0..8}; do
         if [ $((inventory[invIndex])) -eq 0 ] && [ $invMode -eq 1 ]; then continue; fi
-        itemNames $((inventory[invIndex]))
+        itemID=${inventory[invIndex]}
+        itemName=${itemNames[$itemID]}
         spaceCount=$((12 - ${#itemName}))
         echo -en "│$((invIndex + 1)): \e[1m"
-        [ $discardMode -eq 1 ] && echo -en "\e[9m" 
+        [ $discardMode -eq 1 ] && echo -en "\e[9m"
         echo -en $itemName
         for (( space=0; space <= $spaceCount; space++ )); do echo -n " "; done
         echo -e "\e[0m│"
@@ -115,9 +111,9 @@ printInventory() {  # Prints items in inventory
     echo "│                ╵"
 }
 
-heal() {  # Add value to `$lives`
-    newLives=$((lives + $1))
-    lives=$((newLives > 16 ? 16 : newLives))
+heal() {  # Add value to `$health`
+    newHealth=$((health + $1))
+    health=$((newHealth > 16 ? 16 : newHealth))
 }
 
 armour() {  # Add value to `$shields`
@@ -131,35 +127,39 @@ setMessage() {  # Set message
 }
 
 tryMove() {
-    tryX=$((player[0] + $1))
-    tryY=$((player[1] + $2))
-    gridIndex=$((tryX + tryY * 8))
-    objectID=$((objectGrid[gridIndex]))
+    tryX=$((playerPos[0] + $1))
+    tryY=$((playerPos[1] + $2))
+    objectIndex="R$((playerPos[2])),$((playerPos[3])),$tryX,$tryY"
+    getObject $objectIndex
     
     if [[ $tryX =~ [3,4] ]] && [ $tryY -eq -1 ]; then
-        player[1]=7
-        player[3]=$((player[3] - 1))
+        playerPos[1]=7
+        playerPos[3]=$((playerPos[3] - 1))
         stepped=1
+        genRoom
     elif [[ $tryX =~ [3,4] ]] && [ $tryY -eq 8 ]; then
-        player[1]=0
-        player[3]=$((player[3] + 1))
+        playerPos[1]=0
+        playerPos[3]=$((playerPos[3] + 1))
         stepped=1
+        genRoom
     elif [[ $tryY =~ [3,4] ]] && [ $tryX -eq -1 ]; then
-        player[0]=7
-        player[2]=$((player[2] - 1))
+        playerPos[0]=7
+        playerPos[2]=$((playerPos[2] - 1))
         stepped=1
+        genRoom
     elif [[ $tryY =~ [3,4] ]] && [ $tryX -eq 8 ]; then
-        player[0]=0
-        player[2]=$((player[2] + 1))
+        playerPos[0]=0
+        playerPos[2]=$((playerPos[2] + 1))
         stepped=1
-    elif [ $objectID -le -2 ]; then
-        tileUse $objectID
+        genRoom
     elif [ $tryX -eq -1 ] || [ $tryY -eq -1 ] || [ $tryX -eq 8 ] || [ $tryY -eq 8 ] || [ $objectID -eq -1 ]; then
         setMessage "You bump into a wall"
         messageLast=0
+    elif [ $objectID -le -2 ]; then
+        tileUse $objectID
     else
-        player[0]=$tryX
-        player[1]=$tryY
+        playerPos[0]=$tryX
+        playerPos[1]=$tryY
         stepped=1
     fi
 }
@@ -192,22 +192,19 @@ doActions() {  # Read actions & perform them
                 if [ $itemID -ne 0 ]; then
                     itemFunctions $itemID
                 else
-                    gridIndex=$((player[0] + player[1] * 8))
-                    itemID=$((objectGrid[gridIndex]))
-                    if [ $itemID -ne 0 ]; then
-                        itemNames $itemID
-                        inventory[$((action - 1))]=$itemID
-                        objectGrid[$gridIndex]=0
-                        setMessage "You picked up $itemName"
+                    objectIndex="R$((playerPos[2])),$((playerPos[3])),$((playerPos[0])),$((playerPos[1]))"
+                    getObject $objectIndex
+                    if [ $objectID -ne 0 ]; then
+                        inventory[$((action - 1))]=$objectID
+                        setObject $objectIndex 0
+                        setMessage "You pick up the ${itemNames[$objectID]}"
                         stepped=1
                     fi
                 fi
-            else
-                itemNames $itemID
-                setMessage "You discard the $itemName"
+            elif [ $itemID -ne 0 ]; then
+                setMessage "You discard the ${itemNames[$itemID]}"
                 messageLast=0
                 inventory[$((action - 1))]=0
-                [ $equipped -eq $((action - 1)) ] && equipped=-1
             fi
             ;;
         "i")  # Change Inventory View
@@ -227,19 +224,20 @@ doActions() {  # Read actions & perform them
 }
 
 
-until [ $lives -eq 0 ]; do
+until [ $health -eq 0 ]; do
     clear
+    ## echo ${!rooms[@]}
     ## tput cup 0 0
     
     # -- GUI Rendering --
     # Top line ╔╡x╞═══┄┄┄┄═══╡y ╞╗
-    spaceCountLeft=$((3 - ${#player[2]}))
-    spaceCountRight=$((3 - ${#player[3]}))
-    echo -n "╔╡$((player[2]))╞"
+    spaceCountLeft=$((3 - ${#playerPos[2]}))
+    spaceCountRight=$((3 - ${#playerPos[3]}))
+    echo -n "╔╡$((playerPos[2]))╞"
     for (( space=0; space <= $spaceCountLeft; space++ )); do echo -n "═"; done
     echo -n "┄┄┄┄"
     for (( space=0; space <= $spaceCountRight; space++ )); do echo -n "═"; done
-    echo -n "╡$((player[3]))╞╗"
+    echo -n "╡$((playerPos[3]))╞╗"
     helpLine 0
     echo
     

@@ -1,6 +1,8 @@
 #!/bin/bash
 
-helpLine() {
+IFS="%"
+
+helpLine() {  # $1: Line Number
     [ $helpMode -eq 0 ] && return
     case $1 in
         0)
@@ -27,19 +29,19 @@ helpLine() {
             [ $helpMode -eq 3 ] && echo -ne "   with great \e[1meffort\e[0m"
             ;;
         5)
-            [ $helpMode -eq 1 ] && echo -ne "  Use equipped with \e[1mF\e[0m"
+            [ $helpMode -eq 1 ] && echo -ne "  Use an \e[1mempty slot\e[0m"
             [ $helpMode -eq 2 ] && echo -ne "  Keep \e[1mHP\e[0m ◕ from 0 ○"
             ;;
         6)
-            [ $helpMode -eq 1 ] && echo -ne "  Use an \e[1mempty slot\e[0m"
+            [ $helpMode -eq 1 ] && echo -ne "      to pick up item"
             [ $helpMode -eq 2 ] && echo -ne "  Equip \e[1mArmour\e[0m ▼ to"
             ;;
         7)
-            [ $helpMode -eq 1 ] && echo -ne "      to pick up item"
+            [ $helpMode -eq 1 ] && echo -ne "  Interact by \e[1mwalking\e[0m"
             [ $helpMode -eq 2 ] && echo -ne "      protect yourself"
             ;;
         8)
-            [ $helpMode -eq 1 ] && echo -ne "  Interact by \e[1mwalking\e[0m"
+            [ $helpMode -eq 1 ] && echo -ne "      into things"
             ;;
         9)
             [ $helpMode -eq 3 ] && echo -ne "    ...Hide with \e[1mO\e[0m" ||

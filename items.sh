@@ -1,21 +1,24 @@
 #!/bin/bash
 
 # -#-   -Name-      -Function-
+# -4    Mimic       Turns into an enemy when interacted with
 # -3    Chest       Drops an item on interact
-# -2    Crates      Breakable
+# -2    Rocks       Breakable
 # -1    Wall        Prevents passthrough
 #  0    Nothing
 #  1    Apple       Restores 1HP
 #  2    Armour      Restores 1 shield
 #  3    Old Rag     TODO Increases attack damage
-#  4    Rock        TODO Deals damage proportional to HP
-#  5    Potion      TODO Restores 1HP per turn for 4 turns
+#  4    Rock        TODO Throw at a random enemy, dealing damage proportional to HP
+#  5    Potion      Restores 1HP per turn for 4 turns
 #  6    Poison      TODO Next attacked enemy will take 1HP for 4 turns
 #  7    Posion      TODO Heals enemy by 4HP
-#  8    Gold        TODO Looks nice
+#  8    Gold        Looks nice
 
+IFS="%"
+itemCount=9
 
-tileIcons() {
+tileIcons() {  # $1: Tile ID, $2: Odd/Even
     case $1 in
         -1)
             tileIcon="▒▒"
@@ -30,89 +33,34 @@ tileIcons() {
                     ;;
             esac
             ;;
-        -3)
+        -3|-4)
             tileIcon="┌╖"
             ;;
     esac
 }
 
-itemIcons() {
-    case $1 in
-        0)
-            itemIcon=" "
-            ;;
-        1)
-            itemIcon="•"
-            ;;
-        2)
-            itemIcon="▾"
-            ;;
-        3)
-            itemIcon="▰"
-            ;;
-        4)
-            itemIcon="▪"
-            ;;
-        5)
-            itemIcon="◬"
-            ;;
-        6|7)
-            itemIcon="◭"
-            ;;
-        8)
-            itemIcon="$"
-            ;;
-    esac
-}
+declare -A itemIcons
+itemIcons=([0]=" " [1]="•" [2]="▾" [3]="▰" [4]="▪" [5]="◬" [6]="◭" [7]="◭" [8]="$")
 
-itemNames() {
-    case $1 in
-        0)
-            itemName=" - None -"
-            ;;
-        1)
-            itemName="Apple"
-            ;;
-        2)
-            itemName="Armour"
-            ;;
-        3)
-            itemName="Old Rag"
-            ;;
-        4)
-            [ $invIndex -eq $equipped ] && itemName="[Rock]" || itemName="Rock"
-            ;;
-        5)
-            itemName="Potion"
-            ;;
-        6)
-            itemName="Poison"
-            ;;
-        7)
-            itemName="Posion"
-            ;;
-        8)
-            itemName="Gold"
-            ;;
-    esac
-}
+declare -A itemNames
+itemNames=([0]=" - None -" [1]="Apple" [2]="Armour" [3]="Old Rag" [4]="Rock" [5]="Potion" [6]="Poison" [7]="Posion" [8]="Gold")
 
-tileUse() {
+tileUse() {  # $1: Tile ID
     case $1 in
         -2)
-            objectGrid[$gridIndex]=0
-            setMessage "You smash the Crate"
+            setObject $objectIndex $((RANDOM % 4 / 3 * 4))  # 1 in 4 chance of dropping a rock
+            setMessage "You smash through the Rocks"
             stepped=1
             ;;
         -3)
-            objectGrid[$gridIndex]=$((RANDOM % 8 + 1))
+            setObject $objectIndex $((RANDOM % (itemCount - 1) + 1))
             setMessage "You open the Chest"
             stepped=1
             ;;
     esac
 }
 
-itemFunctions() {
+itemFunctions() {  # $1: Item ID
     case $1 in
         1)
             heal 1
@@ -133,9 +81,9 @@ itemFunctions() {
             stepped=1
             ;;
         4)
-            setMessage "You equip the Rock"
-            equipped=$((action - 1))
-            messageLast=0
+            setMessage "You lob the rock at the $enemy"
+            # TODO
+            stepped=1
             ;;
         5)
             healOverTime=$((healOverTime + 4))
